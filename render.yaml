@@ -50,5 +50,4 @@ databases:
   # ----------------------------------------------------------------------------
   - name: vardan-db
     databaseName: hospital_saas
-    user: postgres
     plan: free
