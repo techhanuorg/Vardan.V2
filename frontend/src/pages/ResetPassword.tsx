@@ -1,0 +1,141 @@
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useNotifications } from "../contexts/NotificationContext.js";
+import { KeyRound, Lock, ArrowLeft, Loader2 } from "lucide-react";
+
+export const ResetPassword: React.FC = () => {
+  const { showToast } = useNotifications();
+  const navigate = useNavigate();
+
+  const [email, setEmail] = useState("");
+  const [token, setToken] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    const savedEmail = sessionStorage.getItem("resetEmail");
+    if (savedEmail) {
+      setEmail(savedEmail);
+    }
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !token || !newPassword) return;
+
+    setSubmitting(true);
+    try {
+      const res = await fetch("http://localhost:5000/api/v1/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, token, newPassword }),
+      });
+
+      const payload = await res.json();
+      if (res.ok) {
+        showToast("Password reset complete. You can sign in.", "success");
+        sessionStorage.removeItem("resetEmail");
+        navigate("/login");
+      } else {
+        showToast(payload.message || "Failed to reset password.", "error");
+      }
+    } catch (error) {
+      showToast("Connection to server failed.", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-6">
+      <div className="relative max-w-md w-full p-8 rounded-3xl border border-slate-200/50 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 shadow-2xl glass animate-fade-in">
+        <div className="mb-6">
+          <a
+            href="/forgot-password"
+            className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to code request
+          </a>
+        </div>
+
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+            Verify Code
+          </h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Input the 6 digit passcode sent to your inbox.
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Recovery Email Input */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+              Email Address
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-3 border border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50 dark:bg-slate-800/40 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium"
+              required
+            />
+          </div>
+
+          {/* Code Token Input */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+              Verification Code
+            </label>
+            <div className="relative">
+              <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5.5 w-5 text-slate-400" />
+              <input
+                type="text"
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder="123456"
+                className="w-full pl-11 pr-4 py-3 border border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50 dark:bg-slate-800/40 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium text-center tracking-widest font-mono"
+                required
+              />
+            </div>
+          </div>
+
+          {/* New Password Input */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+              New Password
+            </label>
+            <div className="relative">
+              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5.5 w-5 text-slate-400" />
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full pl-11 pr-4 py-3 border border-slate-200 dark:border-slate-800 rounded-2xl bg-slate-50 dark:bg-slate-800/40 text-sm text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-medium"
+                required
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full py-3 bg-primary text-primary-foreground font-bold rounded-2xl shadow-lg shadow-primary/20 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:pointer-events-none"
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Resetting Password...
+              </>
+            ) : (
+              "Confirm Reset"
+            )}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+export default ResetPassword;

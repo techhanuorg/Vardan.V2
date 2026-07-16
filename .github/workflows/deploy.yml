@@ -1,0 +1,44 @@
+name: Vardan Hospital SaaS CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Generate Prisma Client
+        run: npm run prisma:generate --workspace=backend
+
+      - name: Check code formatting and style
+        run: npm run lint
+
+      - name: Verify Typescript compilation
+        run: npm run typecheck
+
+      - name: Simulate Production Build
+        run: |
+          npm run build --workspace=backend
+          npm run build --workspace=frontend
+
+      - name: Validate Docker Backend Build
+        run: docker build -f backend/Dockerfile . -t hospital-backend:test
+
+      - name: Validate Docker Frontend Build
+        run: docker build -f frontend/Dockerfile . -t hospital-frontend:test

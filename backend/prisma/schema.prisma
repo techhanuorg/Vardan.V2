@@ -1,0 +1,630 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Hospital {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  domain      String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  users             User[]
+  roles             Role[]
+  departments       Department[]
+  doctors           Doctor[]
+  patients          Patient[]
+  appointments      Appointment[]
+  settings          Setting[]
+  sheetConfigs      GoogleSheetConfig[]
+  waSessions        WhatsAppSession[]
+  devices           Device[]
+  agents            AIAgent[]
+  campaigns         Campaign[]
+  templates         Template[]
+  reminders         Reminder[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+  activityLogs      ActivityLog[]
+  aiLogs            AiLog[]
+  files             File[]
+  knowledgeBases    KnowledgeBase[]
+  conversations     Conversation[]
+  followUps         FollowUp[]
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String
+  passwordHash String
+  name         String
+  phone        String?
+  status       String   @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED
+  hospitalId   String
+  hospital     Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  roleId       String
+  role         Role     @relation(fields: [roleId], references: [id])
+  doctorProfile Doctor?
+  refreshTokenHash    String?
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+
+  appointments Appointment[]
+  auditLogs    AuditLog[]
+
+  @@unique([hospitalId, email])
+  @@index([hospitalId])
+  @@index([roleId])
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  hospitalId  String
+  hospital    Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions Permission[]
+  users       User[]
+
+  @@unique([hospitalId, name])
+  @@index([hospitalId])
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  roles       Role[]
+}
+
+model Doctor {
+  id             String   @id @default(uuid())
+  hospitalId     String
+  hospital       Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  userId         String?  @unique
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name           String
+  departmentId   String
+  department     Department @relation(fields: [departmentId], references: [id])
+  qualification  String
+  experience     Int
+  fees           Decimal  @db.Decimal(10, 2)
+  photo          String?
+  availability   Json
+  roomNumber     String
+  specialization String
+  status         String   @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+
+  appointments   Appointment[]
+  slots          AppointmentSlot[]
+  prescriptions  Prescription[]
+  activityLogs   ActivityLog[]
+
+  @@index([hospitalId])
+  @@index([departmentId])
+}
+
+model Department {
+  id          String   @id @default(uuid())
+  hospitalId  String
+  hospital    Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  doctors      Doctor[]
+  appointments Appointment[]
+
+  @@unique([hospitalId, name])
+  @@index([hospitalId])
+}
+
+model Patient {
+  id               String   @id @default(uuid())
+  hospitalId       String
+  hospital         Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  patientId        String   // Unique Business Patient ID like P-10001
+  name             String
+  gender           String
+  age              Int
+  dob              DateTime
+  phone            String
+  alternatePhone   String?
+  email            String?
+  address          String
+  bloodGroup       String?
+  emergencyContact Json
+  registrationDate DateTime @default(now())
+  medicalNotes     String?
+  status           String   @default("ACTIVE") // ACTIVE, DISCHARGED, INACTIVE
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  deletedAt        DateTime?
+
+  documents          PatientDocument[]
+  appointments       Appointment[]
+  prescriptions      Prescription[]
+  followUps          FollowUp[]
+  reminders          Reminder[]
+  campaignRecipients CampaignRecipient[]
+  activityLogs       ActivityLog[]
+
+  @@unique([hospitalId, patientId])
+  @@unique([hospitalId, phone])
+  @@index([hospitalId])
+  @@index([phone])
+}
+
+model PatientDocument {
+  id          String   @id @default(uuid())
+  patientId   String
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  fileId      String   @unique
+  file        File     @relation(fields: [fileId], references: [id])
+  name        String
+  type        String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@index([patientId])
+}
+
+model Appointment {
+  id            String   @id @default(uuid())
+  appointmentId String   // Unique business ID e.g. A-10001
+  hospitalId    String
+  hospital      Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  patientId     String
+  patient       Patient  @relation(fields: [patientId], references: [id])
+  doctorId      String
+  doctor        Doctor   @relation(fields: [doctorId], references: [id])
+  departmentId  String
+  department    Department @relation(fields: [departmentId], references: [id])
+  date          DateTime
+  slotId        String?  @unique
+  slot          AppointmentSlot? @relation(fields: [slotId], references: [id])
+  status        String   @default("PENDING") // PENDING, CONFIRMED, COMPLETED, CANCELLED, NOSHOW
+  reason        String
+  createdById   String
+  createdBy     User     @relation(fields: [createdById], references: [id])
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  prescriptions Prescription[]
+  followUps     FollowUp[]
+
+  @@unique([hospitalId, appointmentId])
+  @@index([hospitalId])
+  @@index([patientId])
+  @@index([doctorId])
+  @@index([departmentId])
+  @@index([date])
+}
+
+model AppointmentSlot {
+  id          String   @id @default(uuid())
+  doctorId    String
+  doctor      Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  date        DateTime
+  startTime   String
+  endTime     String
+  isBooked    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  appointment Appointment?
+
+  @@index([doctorId])
+  @@index([date])
+}
+
+model Prescription {
+  id            String   @id @default(uuid())
+  appointmentId String
+  appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  doctorId      String
+  doctor        Doctor   @relation(fields: [doctorId], references: [id])
+  patientId     String
+  patient       Patient  @relation(fields: [patientId], references: [id])
+  diagnosis     String
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  medicines     Medicine[]
+
+  @@index([appointmentId])
+  @@index([doctorId])
+  @@index([patientId])
+}
+
+model Medicine {
+  id             String   @id @default(uuid())
+  prescriptionId String
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  name           String
+  dosage         String
+  frequency      String
+  duration       String
+  instructions   String?
+
+  @@index([prescriptionId])
+}
+
+model FollowUp {
+  id            String   @id @default(uuid())
+  hospitalId    String
+  hospital      Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  patientId     String
+  patient       Patient  @relation(fields: [patientId], references: [id])
+  appointmentId String?
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  followUpDate  DateTime
+  status        String   @default("PENDING") // PENDING, CALLED, COMPLETED, NO_RESPONSE
+  reason        String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  @@index([hospitalId])
+  @@index([patientId])
+  @@index([followUpDate])
+}
+
+model Reminder {
+  id          String   @id @default(uuid())
+  hospitalId  String
+  hospital    Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  patientId   String
+  patient     Patient  @relation(fields: [patientId], references: [id])
+  type        String   // APPOINTMENT, FOLLOWUP, IMMUNIZATION
+  message     String
+  scheduledAt DateTime
+  status      String   @default("PENDING") // PENDING, SENT, FAILED
+  sentAt      DateTime?
+  retryCount  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@index([hospitalId])
+  @@index([patientId])
+  @@index([scheduledAt])
+  @@index([status])
+}
+
+model Conversation {
+  id             String   @id @default(uuid())
+  hospitalId     String
+  hospital       Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  phone          String
+  intent         String?
+  language       String   @default("en")
+  currentAgentId String?
+  currentAgent   AIAgent? @relation(fields: [currentAgentId], references: [id])
+  context        Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  deletedAt      DateTime?
+
+  messages  Message[]
+  memories  ConversationMemory[]
+
+  @@unique([hospitalId, phone])
+  @@index([hospitalId])
+}
+
+model Message {
+  id             String   @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         String   // PATIENT, AI, DOCTOR
+  body           String
+  mediaUrl       String?
+  createdAt      DateTime @default(now())
+  deletedAt      DateTime?
+
+  // WhatsApp engine integration fields
+  whatsappMessageId String?
+  status            String    @default("SENT") // PENDING, SENT, DELIVERED, READ, FAILED
+  mimeType          String?
+  fileName          String?
+  fileSize          Int?
+
+  @@index([conversationId])
+  @@index([whatsappMessageId])
+}
+
+model KnowledgeBase {
+  id          String   @id @default(uuid())
+  hospitalId  String
+  hospital    Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  title       String
+  content     String
+  category    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  faqs        FAQ[]
+
+  @@index([hospitalId])
+}
+
+model FAQ {
+  id              String   @id @default(uuid())
+  knowledgeBaseId String
+  knowledgeBase   KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+  question        String
+  answer          String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  @@index([knowledgeBaseId])
+}
+
+model Campaign {
+  id          String   @id @default(uuid())
+  hospitalId  String
+  hospital    Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  name        String
+  status      String   @default("DRAFT") // DRAFT, SCHEDULED, ACTIVE, COMPLETED
+  templateId  String
+  template    Template @relation(fields: [templateId], references: [id])
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  recipients  CampaignRecipient[]
+
+  @@index([hospitalId])
+}
+
+model CampaignRecipient {
+  id           String   @id @default(uuid())
+  campaignId   String
+  campaign     Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  patientId    String
+  patient      Patient  @relation(fields: [patientId], references: [id])
+  status       String   @default("PENDING") // PENDING, SENT, FAILED
+  sentAt       DateTime?
+  errorMessage String?
+
+  @@unique([campaignId, patientId])
+  @@index([campaignId])
+  @@index([patientId])
+}
+
+model Template {
+  id          String   @id @default(uuid())
+  hospitalId  String
+  hospital    Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  name        String
+  content     String
+  type        String   // WHATSAPP, EMAIL, SMS
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  campaigns   Campaign[]
+
+  @@unique([hospitalId, name])
+  @@index([hospitalId])
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  hospitalId  String
+  hospital    Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  userId      String?
+  title       String
+  message     String
+  read        Boolean  @default(false)
+  type        String   // SYSTEM, APPOINTMENT, CHAT
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@index([hospitalId])
+  @@index([userId])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  hospitalId String
+  hospital   Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String
+  entity     String
+  entityId   String?
+  payload    Json?
+  clientIp   String?
+  createdAt  DateTime @default(now())
+
+  @@index([hospitalId])
+  @@index([userId])
+}
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  hospitalId String
+  hospital   Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  patientId  String?
+  patient    Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  doctorId   String?
+  doctor     Doctor?  @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+  action     String
+  details    String?
+  createdAt  DateTime @default(now())
+
+  @@index([hospitalId])
+  @@index([patientId])
+  @@index([doctorId])
+}
+
+model Setting {
+  id         String   @id @default(uuid())
+  hospitalId String
+  hospital   Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  key        String
+  value      String
+  type       String   // STRING, BOOLEAN, NUMBER, JSON
+  group      String   // SYSTEM, AI, WHATSAPP, BILLING
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  deletedAt  DateTime?
+
+  @@unique([hospitalId, key])
+  @@index([hospitalId])
+}
+
+model GoogleSheetConfig {
+  id            String   @id @default(uuid())
+  hospitalId    String
+  hospital      Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  spreadsheetId String
+  credentials   Json
+  status        String   @default("ACTIVE") // ACTIVE, ERROR
+  lastSyncedAt  DateTime?
+  autoSync      Boolean  @default(true)
+  syncDirection String   @default("TWO_WAY") // ONE_WAY_DB_TO_SHEET, ONE_WAY_SHEET_TO_DB, TWO_WAY
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([hospitalId, spreadsheetId])
+  @@index([hospitalId])
+}
+
+model WhatsAppSession {
+  id          String   @id @default(uuid())
+  hospitalId  String
+  hospital    Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  sessionName String
+  sessionData Json
+  status      String   @default("DISCONNECTED") // CONNECTED, DISCONNECTED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@unique([hospitalId, sessionName])
+  @@index([hospitalId])
+}
+
+model AIAgent {
+  id           String   @id @default(uuid())
+  hospitalId   String
+  hospital     Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  name         String
+  type         String   // TRIAGE, INTAKE, SUPPORT
+  systemPrompt String
+  settings     Json
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+
+  conversations Conversation[]
+
+  @@unique([hospitalId, name])
+  @@index([hospitalId])
+}
+
+model ConversationMemory {
+  id             String   @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  memoryKey      String
+  memoryValue    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([conversationId, memoryKey])
+  @@index([conversationId])
+}
+
+model File {
+  id         String   @id @default(uuid())
+  hospitalId String
+  hospital   Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  name       String
+  key        String
+  bucket     String
+  mimeType   String
+  size       Int
+  url        String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  deletedAt  DateTime?
+
+  patientDocuments PatientDocument[]
+
+  @@index([hospitalId])
+}
+
+model Device {
+  id            String   @id @default(uuid())
+  hospitalId    String
+  hospital      Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  whatsappName  String?
+  whatsappId    String?  // user jid
+  platform      String?  // android, ios, web
+  phone         String?
+  status        String   @default("DISCONNECTED") // CONNECTED, DISCONNECTED, CONNECTING
+  lastConnected DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([hospitalId])
+}
+
+model AiLog {
+  id             String   @id @default(uuid())
+  hospitalId     String
+  hospital       Hospital @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  conversationId String?
+  provider       String   // GEMINI, GROQ
+  modelName      String
+  prompt         String
+  response       String?
+  intent         String?
+  tokensUsed     Int      @default(0)
+  latencyMs      Int      @default(0)
+  error          String?
+  createdAt      DateTime @default(now())
+
+  @@index([hospitalId])
+  @@index([conversationId])
+}
+
+
