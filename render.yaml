@@ -6,7 +6,7 @@ services:
     name: vardan-backend
     env: node
     rootDir: backend
-    buildCommand: npm install && npm run prisma:generate && npm run build
+    buildCommand: npm install --legacy-peer-deps && npm run prisma:generate && npm run build
     startCommand: npm start
     envVars:
       - key: PORT
@@ -36,7 +36,7 @@ services:
     name: vardan-frontend
     env: static
     rootDir: frontend
-    buildCommand: npm install && npm run build
+    buildCommand: npm install --legacy-peer-deps && npm run build
     staticPublishPath: dist
     routes:
       # Direct all SPA routes to index.html for React Router
