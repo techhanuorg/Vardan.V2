@@ -5,6 +5,7 @@ services:
   - type: web
     name: vardan-backend
     env: node
+    plan: free
     buildCommand: npm install --legacy-peer-deps && npx prisma generate --schema=backend/prisma/schema.prisma && npm run build --workspace=backend
     startCommand: npm run start --workspace=backend
     envVars:
