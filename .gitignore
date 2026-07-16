@@ -48,3 +48,10 @@ ehthumbs.db
 # SQLite / Prisma
 /backend/prisma/dev.db
 /backend/prisma/dev.db-journal
+
+# Uploads, sessions, and temp folders
+uploads/
+.temp/
+.baileys/
+auth_info/
+sessions/
